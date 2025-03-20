@@ -2,6 +2,7 @@ package com.example.f24_5;
 
 import android.Manifest;
 import android.content.ContentResolver;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.database.Cursor;
@@ -12,13 +13,15 @@ import android.provider.ContactsContract;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.EditText;
+import android.widget.CompoundButton;
+import android.widget.ToggleButton;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout; // <-- NEW import
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -42,12 +45,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main); // Updated layout with SwipeRefreshLayout
+        setContentView(R.layout.activity_main); // Updated layout with SwipeRefreshLayout and ToggleButton
 
         // Initialize views
-        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout); // <-- NEW
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
         rvChats = findViewById(R.id.rvChats);
         EditText etSearch = findViewById(R.id.etSearch);
+        // NEW: Initialize the ToggleButton for Vishing Detection
+        ToggleButton toggleVishing = findViewById(R.id.toggleVishing);
 
         // Setup RecyclerView
         rvChats.setLayoutManager(new LinearLayoutManager(this));
@@ -61,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
         // TextWatcher for searching
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String query = s.toString().toLowerCase();
@@ -86,7 +91,21 @@ public class MainActivity extends AppCompatActivity {
                 chatAdapter.notifyDataSetChanged();
             }
             @Override
-            public void afterTextChanged(Editable s) {}
+            public void afterTextChanged(Editable s) { }
+        });
+
+        // NEW: Set listener on ToggleButton for Vishing Detection
+        toggleVishing.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    // Redirect to VishingDetectionActivity when toggled on
+                    Intent intent = new Intent(MainActivity.this, VishingDetectionActivity.class);
+                    startActivity(intent);
+                    // Reset the toggle button state
+                    buttonView.setChecked(false);
+                }
+            }
         });
 
         // Check Permissions
@@ -108,13 +127,12 @@ public class MainActivity extends AppCompatActivity {
             registerSmsObserver();
         }
 
-        // NEW: Set up the pull-to-refresh listener
+        // Set up the pull-to-refresh listener
         swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
                 // User swiped down. Re-fetch or update your data here.
                 fetchSmsMessages();
-
                 // Stop the refresh indicator automatically after 5 seconds
                 swipeRefreshLayout.postDelayed(new Runnable() {
                     @Override

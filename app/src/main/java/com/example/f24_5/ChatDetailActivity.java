@@ -56,7 +56,7 @@ public class ChatDetailActivity extends AppCompatActivity {
         // Set a dummy profile picture
         ivDetailAvatar.setImageResource(R.drawable.ic_avatar);
 
-        // On clicking "Report", we make an API call
+        // On clicking "Report", we make an API call (or perform our custom check)
         btnReport.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -66,7 +66,7 @@ public class ChatDetailActivity extends AppCompatActivity {
     }
 
     private void showLoaderAndSendReport(String name, String message) {
-        // Show a loader until the API returns
+        // Show a loader until the API returns or our check completes
         final ProgressDialog progressDialog = new ProgressDialog(ChatDetailActivity.this);
         progressDialog.setMessage("Reporting...");
         progressDialog.setCancelable(false);
@@ -82,6 +82,25 @@ public class ChatDetailActivity extends AppCompatActivity {
             phoneNumber = name; // Fallback if no parentheses found
         }
 
+        // Check: if the phone number includes any non-digit characters,
+        // consider it invalid and mark as 0% smishing.
+        if (!phoneNumber.matches("^\\+?\\d+$")) {
+            progressDialog.dismiss();
+            // Create a dummy JSON response for the invalid phone number
+            JSONObject dummyResponse = new JSONObject();
+            try {
+                dummyResponse.put("phishing_probability", 0.0);
+                dummyResponse.put("phone_type", "invalid");
+                dummyResponse.put("linkPresent", "false");
+                dummyResponse.put("status", "Not smishing");
+                dummyResponse.put("model_used", "N/A");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            showCustomDialog(dummyResponse);
+            return;
+        }
+
         // Build the JSON payload for the API
         JSONObject payload = new JSONObject();
         try {
@@ -91,7 +110,7 @@ public class ChatDetailActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        String url = "http://172.20.10.5:8000/analyze"; // or your LAN IP if on real device
+        String url = "http://192.168.10.9:8000/analyze"; // or your LAN IP if on real device
 
         // Create a POST request using Volley
         JsonObjectRequest request = new JsonObjectRequest(
@@ -156,7 +175,6 @@ public class ChatDetailActivity extends AppCompatActivity {
             tvProbability.setText(progressValue + "%");
 
             // Format additional info
-            // You can show more fields as you like
             String detailsText =
                     "Phone Type: " + phoneType + "\n" +
                             "Link Present: " + linkPresent + "\n" +
@@ -172,7 +190,6 @@ public class ChatDetailActivity extends AppCompatActivity {
         // OK button to dismiss the dialog
         AlertDialog dialog = builder.create();
         btnOk.setOnClickListener(v -> dialog.dismiss());
-
         dialog.show();
     }
 
