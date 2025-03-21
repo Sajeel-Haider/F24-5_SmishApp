@@ -89,17 +89,22 @@ public class ChatDetailActivity extends AppCompatActivity {
             // Create a dummy JSON response for the invalid phone number
             JSONObject dummyResponse = new JSONObject();
             try {
+                // 0% probability => "safe"
                 dummyResponse.put("phishing_probability", 0.0);
-                dummyResponse.put("phone_type", "invalid");
-                dummyResponse.put("linkPresent", "false");
-                dummyResponse.put("status", "Not smishing");
-                dummyResponse.put("model_used", "N/A");
+
+                // Mark phone_type as "organization"
+                // so in showCustomDialog() it becomes "Organization number was used"
+                dummyResponse.put("phone_type", "organization");
+
+
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-            showCustomDialog(dummyResponse);
+            showCustomDialogNonSmishing(dummyResponse);
+
             return;
         }
+
 
         // Build the JSON payload for the API
         JSONObject payload = new JSONObject();
@@ -132,10 +137,67 @@ public class ChatDetailActivity extends AppCompatActivity {
                     }
                 }
         );
-
+        request.setRetryPolicy(new com.android.volley.DefaultRetryPolicy(
+                240 * 1000,  // Timeout in ms (60 seconds)
+                com.android.volley.DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
+                com.android.volley.DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+        ));
         // Add the request to the Volley request queue
         RequestQueue queue = Volley.newRequestQueue(ChatDetailActivity.this);
         queue.add(request);
+    }
+    private void showCustomDialogNonSmishing(JSONObject response) {
+        // Inflate the custom layout
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_api_response, null);
+        builder.setView(dialogView);
+
+        // References to views in dialog layout
+        TextView tvDialogTitle = dialogView.findViewById(R.id.tvDialogTitle);
+        ProgressBar circleProgressBar = dialogView.findViewById(R.id.circleProgressBar);
+        TextView tvProbability = dialogView.findViewById(R.id.tvProbability);
+        TextView tvResponseDetails = dialogView.findViewById(R.id.tvResponseDetails);
+        Button btnOk = dialogView.findViewById(R.id.btnOk);
+        TextView tvSpoofedNote = dialogView.findViewById(R.id.tvSpoofedNote); // if you have this in layout
+
+        // Custom title
+        tvDialogTitle.setText("Smishing Analysis Result");
+
+        try {
+            // We expect phishing_probability = 0.0, phone_type = "organization"
+            double phishingProbability = response.optDouble("phishing_probability", 0.0);
+            String phoneType = response.optString("phone_type", "organization");
+
+            // Convert 0.0 to a 0% donut
+            int progressValue = (int) Math.round(phishingProbability * 100);
+            circleProgressBar.setProgress(progressValue);
+            tvProbability.setText(progressValue + "%");  // Should be "0%"
+
+            // Show a simple statement
+            String phoneTypeText = "Organization number was used";
+            // If you want a condition, for example if phoneType is "invalid" or something, handle that
+            // but we'll assume "organization" here.
+
+            // Our simple details. “Not smishing”:
+            String detailsText =
+                    "Number Type: " + phoneTypeText + "\n\n" +
+                            "This message is not smishing.";
+
+            tvResponseDetails.setText(detailsText);
+
+            // If you have a small "spoofed" note, you can hide or change it
+            if (tvSpoofedNote != null) {
+                tvSpoofedNote.setText(""); // or set visibility GONE if you want
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            tvResponseDetails.setText("Error parsing response.");
+        }
+
+        AlertDialog dialog = builder.create();
+        btnOk.setOnClickListener(v -> dialog.dismiss());
+        dialog.show();
     }
 
     /**
@@ -154,44 +216,91 @@ public class ChatDetailActivity extends AppCompatActivity {
         TextView tvProbability = dialogView.findViewById(R.id.tvProbability);
         TextView tvResponseDetails = dialogView.findViewById(R.id.tvResponseDetails);
         Button btnOk = dialogView.findViewById(R.id.btnOk);
+        TextView tvSpoofedNote = dialogView.findViewById(R.id.tvSpoofedNote);  // <-- new note
 
         // Optionally set a custom title
-        tvDialogTitle.setText("Phishing Analysis Result");
+        tvDialogTitle.setText("Smishing Analysis Result");
 
         try {
-            // Example fields from your JSON response:
-            // {"phone_type":"not mobile","linkPresent":"false","phishing_probability":0.178,"status":"success", ...}
-
+            // -------------------------------------------------------------
+            // 1) Extract fields from the JSON
+            // -------------------------------------------------------------
             double phishingProbability = response.optDouble("phishing_probability", 0.0);
             String phoneType = response.optString("phone_type", "unknown");
-            String linkPresent = response.optString("linkPresent", "unknown");
-            String status = response.optString("status", "unknown");
-            String modelUsed = response.optString("model_used", "N/A");
+            boolean linkPresent = response.optBoolean("linkPresent", false);
+            boolean linkAuthentic = response.optBoolean("link_authentic", false);
 
-            // Set progress bar
+            // "reasons" is an array, e.g. ["New domain", "Flagged by 5 engines"]
+            // We'll handle it gracefully
+            org.json.JSONArray reasonsArray = response.optJSONArray("reasons");
+            String recommendation = response.optString("recommendation", "No recommendation provided");
+
+            // model_used and status are omitted intentionally
+
+            // -------------------------------------------------------------
+            // 2) Configure and set the donut progress bar (phishing prob)
+            // -------------------------------------------------------------
             // Convert probability to 0-100 scale
             int progressValue = (int) Math.round(phishingProbability * 100);
             circleProgressBar.setProgress(progressValue);
             tvProbability.setText(progressValue + "%");
 
-            // Format additional info
+            // -------------------------------------------------------------
+            // 3) Build the "report style" text
+            // -------------------------------------------------------------
+            // phone_type mapping
+            String phoneTypeText = phoneType.equals("not mobile")
+                    ? "Private number was used"
+                    : "Organization number was used";
+
+            // linkPresent mapping
+            String linkPresentText = linkPresent
+                    ? "Link is present in the message"
+                    : "No link found in the message";
+
+            // linkAuthentic mapping
+            String linkAuthenticText = linkAuthentic
+                    ? "Link appears authentic"
+                    : "Link does NOT appear authentic";
+
+            // reasons
+            StringBuilder reasonsBuilder = new StringBuilder();
+            if (reasonsArray != null && reasonsArray.length() > 0) {
+                for (int i = 0; i < reasonsArray.length(); i++) {
+                    String reason = reasonsArray.optString(i, "-");
+                    reasonsBuilder.append("• ").append(reason).append("\n");
+                }
+            } else {
+                reasonsBuilder.append("No specific reasons given.\n");
+            }
+
+            // Compose a final details string
+            // You can customize the formatting/headings as you prefer
             String detailsText =
-                    "Phone Type: " + phoneType + "\n" +
-                            "Link Present: " + linkPresent + "\n" +
-                            "Model Used: " + modelUsed + "\n" +
-                            "Status: " + status;
+                    "Number Type: " + phoneTypeText + "\n\n" +
+                            linkPresentText + "\n" +
+                            linkAuthenticText + "\n\n" +
+                            "Reasons:\n" + reasonsBuilder.toString() + "\n" +
+                            "Recommendation:\n" + recommendation;
+
             tvResponseDetails.setText(detailsText);
+
+            tvSpoofedNote.setText("This number might be spoofed");
+
 
         } catch (Exception e) {
             e.printStackTrace();
             tvResponseDetails.setText("Error parsing response.");
         }
 
-        // OK button to dismiss the dialog
+        // -------------------------------------------------------------
+        // 4) OK button to dismiss the dialog
+        // -------------------------------------------------------------
         AlertDialog dialog = builder.create();
         btnOk.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
+
 
     /**
      * Show an error dialog if Volley fails.

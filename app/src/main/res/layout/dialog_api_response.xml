@@ -12,20 +12,19 @@
         android:id="@+id/tvDialogTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Phishing Analysis Result"
+        android:text="Smishing Analysis Result"
         android:textSize="20sp"
         android:textStyle="bold"
         android:gravity="center"
         android:layout_marginBottom="16dp"/>
 
-    <!-- A container for a circular progress bar + label in the center -->
+    <!-- Donut container -->
     <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:layout_marginBottom="16dp">
 
-        <!-- Circular ProgressBar (styled via drawable) -->
         <ProgressBar
             android:id="@+id/circleProgressBar"
             style="?android:attr/progressBarStyleHorizontal"
@@ -38,7 +37,7 @@
             android:layout_gravity="center"
             android:progressDrawable="@drawable/circular_progress_drawable"/>
 
-        <!-- Text in the center to display the probability percentage -->
+        <!-- Probability label -->
         <TextView
             android:id="@+id/tvProbability"
             android:layout_width="wrap_content"
@@ -49,7 +48,7 @@
             android:layout_gravity="center"/>
     </FrameLayout>
 
-    <!-- Other details from the response -->
+    <!-- The main details -->
     <TextView
         android:id="@+id/tvResponseDetails"
         android:layout_width="match_parent"
@@ -58,7 +57,18 @@
         android:textSize="16sp"
         android:layout_marginBottom="16dp"/>
 
-    <!-- OK button to dismiss the dialog -->
+    <!-- SMALL note about spoofing -->
+    <TextView
+        android:id="@+id/tvSpoofedNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="This number might be spoofed"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"
+        android:visibility="visible" />
+
+    <!-- OK button -->
     <Button
         android:id="@+id/btnOk"
         android:layout_width="wrap_content"

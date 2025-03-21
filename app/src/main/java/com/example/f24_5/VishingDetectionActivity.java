@@ -9,6 +9,7 @@ import android.util.Base64;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -113,7 +114,7 @@ public class VishingDetectionActivity extends AppCompatActivity {
             mediaRecorder = null;
             isRecording = false;
 
-            tvStatus.setText("Recording stopped. File saved at:\n" + outputFilePath);
+            tvStatus.setText("Recorded");
             btnRecord.setEnabled(true);
             btnStop.setEnabled(false);
 
@@ -217,8 +218,9 @@ public class VishingDetectionActivity extends AppCompatActivity {
      * similar to how you did for smishing detection.
      */
     private void showResponseDialog(JSONObject response) {
+        // Inflate the custom layout
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_api_response, null);
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_api_response_vish, null);
         builder.setView(dialogView);
 
         // References to views in dialog layout
@@ -226,20 +228,50 @@ public class VishingDetectionActivity extends AppCompatActivity {
         TextView tvResponseDetails = dialogView.findViewById(R.id.tvResponseDetails);
         Button btnOk = dialogView.findViewById(R.id.btnOk);
 
-        // Title
+        // NEW references for donut chart
+        ProgressBar circleProgressBar = dialogView.findViewById(R.id.circleProgressBar);
+        TextView tvProbability = dialogView.findViewById(R.id.tvProbability);
+
+        // Set a custom title
         tvDialogTitle.setText("Vishing Analysis Result");
 
         try {
-            // Show the entire JSON response in a pretty-printed format
-            tvResponseDetails.setText(response.toString(2));
+            // 1) Parse the fields you expect
+            String prediction = response.optString("prediction", "N/A");
+            String transcribedText = response.optString("text", "No text available");
+            String vishingStatus = response.optString("status", "Unknown");
+            // NEW: Probability field from backend
+            // 2) Decide donut progress based on "Phishing" or "Not Phishing"
+            int progressValue;
+            if (prediction.equalsIgnoreCase("Phishing")) {
+                progressValue = 100; // 100% if it's phishing
+            } else {
+                progressValue = 0;   // 0% if it's not phishing
+            }
+
+            circleProgressBar.setProgress(progressValue);
+            tvProbability.setText(progressValue + "%");
+
+            // 3) Build a readable report text
+            String detailsText =
+                    "Prediction: " + prediction + "\n\n" +
+                            "Transcribed Text:\n" + transcribedText + "\n\n" +
+                            "Status: " + vishingStatus;
+
+            tvResponseDetails.setText(detailsText);
+
         } catch (Exception e) {
+            e.printStackTrace();
             tvResponseDetails.setText("Error parsing response.");
         }
 
+        // 4) OK button to dismiss the dialog
         AlertDialog dialog = builder.create();
         btnOk.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
+
+
 
     // Handle runtime permission result
     @Override
